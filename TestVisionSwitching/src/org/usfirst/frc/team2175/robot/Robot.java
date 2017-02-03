@@ -8,6 +8,7 @@ import edu.wpi.cscore.CvSource;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -23,6 +24,8 @@ public class Robot extends IterativeRobot {
     final String customAuto = "My Auto";
     String autoSelected;
     SendableChooser<String> chooser = new SendableChooser<>();
+    public static final String NETWORK_TABLE_NAME = "selectedCamera";
+    public static final String CAMERA_SELECTION_NUMBER_NAME = "cameraNumber";
 
     /**
      * This function is run when the robot is first started up and should be
@@ -30,15 +33,26 @@ public class Robot extends IterativeRobot {
      */
     @Override
     public void robotInit() {
+        SmartDashboard.putNumber("cameraNumber",
+                NetworkTable.getTable(NETWORK_TABLE_NAME)
+                        .getNumber(CAMERA_SELECTION_NUMBER_NAME, 0));
         chooser.addDefault("Default Auto", defaultAuto);
         chooser.addObject("My Auto", customAuto);
         SmartDashboard.putData("Auto choices", chooser);
         new Thread(() -> {
-            UsbCamera camera =
-                    CameraServer.getInstance().startAutomaticCapture();
-            camera.setResolution(640, 480);
+            UsbCamera camera1 =
+                    CameraServer.getInstance().startAutomaticCapture(0);
+            UsbCamera camera2 =
+                    CameraServer.getInstance().startAutomaticCapture(1);
+            NetworkTable selectedCamera =
+                    NetworkTable.getTable("selectedCamera");
 
-            CvSink cvSink = CameraServer.getInstance().getVideo();
+            camera1.setResolution(640, 480);
+            camera2.setResolution(640, 480);
+
+            CvSink cvSink1 = CameraServer.getInstance().getVideo(camera1);
+            CvSink cvSink2 = CameraServer.getInstance().getVideo(camera2);
+
             CvSource outputStream =
                     CameraServer.getInstance().putVideo("Blur", 640, 480);
 
@@ -46,7 +60,13 @@ public class Robot extends IterativeRobot {
             Mat output = new Mat();
 
             while (!Thread.interrupted()) {
-                cvSink.grabFrame(source);
+                double cameraNumber =
+                        selectedCamera.getNumber("cameraNumber", 0);
+                if (cameraNumber == 0) {
+                    cvSink1.grabFrame(source);
+                } else {
+                    cvSink2.grabFrame(source);
+                }
                 Imgproc.cvtColor(source, output, Imgproc.COLOR_BGR2GRAY);
                 outputStream.putFrame(output);
             }
@@ -93,7 +113,6 @@ public class Robot extends IterativeRobot {
      */
     @Override
     public void teleopPeriodic() {
-        // toggle camera when button is pressed
     }
 
     /**
